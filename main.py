@@ -69,7 +69,7 @@ async def get_video_embed_payload(
         raise HTTPException(status_code=404, detail="Video not found")
 
     # Build the public URL. Update this to your actual HTTPS domain on Render.
-    BASE_URL = "https://tragic-embeds.onrender.com"
+    BASE_URL = "https://tragic-embed.onrender.com"
     video_url = f"{BASE_URL}/videos/{video_name}"
 
     # Default fields if not provided

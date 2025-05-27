@@ -1,96 +1,88 @@
-# app.py
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, UploadFile, File, Query
 from fastapi.responses import FileResponse
 from typing import Optional
 from pathlib import Path
+import shutil
 
 app = FastAPI()
 
-# 1. Define where your video files live on disk.
+# Directory where videos are stored
 VIDEO_DIR = Path(__file__).parent / "videos"
+VIDEO_DIR.mkdir(exist_ok=True)
 
+# ─── Upload Endpoint ───────────────────────────────────────────────────────────
+@app.post("/videos/", status_code=200)
+async def upload_video(file: UploadFile = File(...)):
+    """
+    Accepts a video file upload (multipart/form-data) and saves it under ./videos.
+    """
+    destination = VIDEO_DIR / file.filename
+
+    # You may add checks for file extension or size limits here.
+    with destination.open("wb") as out_file:
+        shutil.copyfileobj(file.file, out_file)
+
+    return {"detail": f"Uploaded as {file.filename}"}
+
+# ─── Serve Video Endpoint ──────────────────────────────────────────────────────
 @app.get("/videos/{video_name}")
 async def serve_video(video_name: str):
     """
-    Serves any file named `video_name` from the ./videos/ directory.
-    Discord will see the returned Content-Type (e.g. video/mp4)
-    and embed it when you point an Embed at this URL.
+    Serves a video file from the ./videos directory.
+    Discord will embed it based on Content-Type (e.g. video/mp4).
     """
     file_path = VIDEO_DIR / video_name
-
-    # Make sure the file actually exists and is a video
     if not file_path.exists() or not file_path.is_file():
         raise HTTPException(status_code=404, detail="Video not found")
 
-    # Rely on FileResponse to guess the correct media_type (e.g. video/mp4)
     return FileResponse(file_path)
 
-
+# ─── Embed Payload Endpoint ────────────────────────────────────────────────────
 @app.get("/embed/video/{video_name}")
 async def get_video_embed_payload(
     video_name: str,
     title: Optional[str] = Query(
         None,
-        description="Custom title to show in the embed. "
-                    "If omitted, defaults to '📹 {video_name}'.",
+        description="Custom embed title. Defaults to '📹 {video_name}'."
     ),
     description: Optional[str] = Query(
         None,
-        description="Custom description to show in the embed. "
-                    "If omitted, defaults to 'Streaming **{video_name}** now!'.",
+        description="Custom embed description. Defaults to 'Streaming **{video_name}** now!'."
     ),
     thumbnail_url: Optional[str] = Query(
         None,
-        description="URL of a custom thumbnail (poster) image. "
-                    "If omitted, no thumbnail field is included.",
+        description="URL of a custom thumbnail image."
     ),
     color: Optional[int] = Query(
         None,
-        description="Integer color code for Discord embed (e.g. 0xFF00FF). "
-                    "If omitted, Discord uses its default embed color.",
+        description="Integer color code for Discord embed (e.g. 0xFF00FF)."
     ),
 ):
     """
-    Returns a JSON payload (Discord-style embed) pointing at the video URL.
-    You can override the default title/description/thumbnail/color by passing
-    query-string parameters. If you leave them out, sensible defaults are used.
-
-    Example GET (default):
-      GET /embed/video/myclip.mp4
-    Example GET (custom):
-      GET /embed/video/myclip.mp4?
-           title=My+Custom+Clip&
-           description=Check+out+this+awesome+clip!&
-           thumbnail_url=https://example.com/thumb.jpg&
-           color=16711680
+    Returns a JSON payload containing a Discord-style embed for the video.
     """
     file_path = VIDEO_DIR / video_name
     if not file_path.exists() or not file_path.is_file():
         raise HTTPException(status_code=404, detail="Video not found")
 
-    # Build the public URL. Update this to your actual HTTPS domain on Render.
+    # Base URL of your deployed FastAPI
     BASE_URL = "https://tragic-embed.onrender.com"
     video_url = f"{BASE_URL}/videos/{video_name}"
 
-    # Default fields if not provided
+    # Default embed fields
     default_title = f"📹 {video_name}"
-    default_description = f"Streaming **{video_name}** now!"
+    default_desc = f"Streaming **{video_name}** now!"
 
-    embed_dict = {
-        "embed": {
-            "title": title.strip() if title else default_title,
-            "description": description.strip() if description else default_description,
-            "url": video_url,
-            "video": {"url": video_url},
-        }
+    embed = {
+        "title": title.strip() if title else default_title,
+        "description": description.strip() if description else default_desc,
+        "url": video_url,
+        "video": {"url": video_url},
     }
 
-    # Only include thumbnail if the user provided a URL
     if thumbnail_url:
-        embed_dict["embed"]["thumbnail"] = {"url": thumbnail_url.strip()}
-
-    # Only include color if the user provided an integer
+        embed["thumbnail"] = {"url": thumbnail_url.strip()}
     if color is not None:
-        embed_dict["embed"]["color"] = color
+        embed["color"] = color
 
-    return embed_dict
+    return {"embed": embed}

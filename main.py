@@ -4,6 +4,7 @@ from fastapi.templating import Jinja2Templates
 from typing import Optional
 from pathlib import Path
 import shutil
+import httpx
 
 app = FastAPI()
 
@@ -13,7 +14,7 @@ VIDEO_DIR = BASE_DIR / "videos"
 TEMPLATES_DIR = BASE_DIR / "templates"
 VIDEO_DIR.mkdir(exist_ok=True)
 TEMPLATES_DIR.mkdir(exist_ok=True)
-
+SERVICE_URL = "https://tragic-embed.onrender.com/"
 
 
 # Jinja2 templates setup
@@ -29,6 +30,24 @@ async def upload_page(request: Request):
         "uploader.html",
         {"request": request}
     )
+
+@app.on_event("startup")
+async def schedule_ping_task():
+    async def ping_loop():
+        async with httpx.AsyncClient(timeout=5) as client:
+            while True:
+                try:
+                    resp = await client.get(f"{SERVICE_URL}/ping")
+                    if resp.status_code != 200:
+                        print(f"Health ping returned {resp.status_code}")
+                except Exception as e:
+                    print(f"External ping failed: {e!r}")
+                await asyncio.sleep(120)
+    asyncio.create_task(ping_loop())
+
+@app.get("/ping")
+async def ping():
+    return {"status": "alive"}
 
 # ─── Upload Endpoint ───────────────────────────────────────────────────────────
 @app.post("/videos/", status_code=200)

@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>🔥 Video Uploader</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    /* Reset & base */
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: linear-gradient(135deg,#1f1c2c,#928dab);
+      color:#eee;
+      display:flex; align-items:center; justify-content:center;
+      min-height:100vh; padding:1rem;
+    }
+
+    /* Card */
+    .uploader {
+      background: rgba(0,0,0,0.6);
+      border-radius:1rem;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+      padding:2rem;
+      max-width:400px;
+      width:100%;
+      text-align:center;
+      backdrop-filter: blur(8px);
+    }
+    .uploader h1 {
+      margin-bottom:1.5rem;
+      font-size:1.75rem;
+      letter-spacing:1px;
+    }
+
+    /* File Input */
+    .file-input {
+      position: relative;
+      overflow: hidden;
+      margin-bottom:1rem;
+    }
+    .file-input input[type=file] {
+      opacity:0;
+      position:absolute; top:0; left:0;
+      width:100%; height:100%; cursor:pointer;
+    }
+    .file-input label {
+      display:block;
+      padding:0.75rem;
+      background: linear-gradient(45deg,#ff416c,#ff4b2b);
+      border-radius:0.5rem;
+      cursor:pointer;
+      transition: background 0.3s;
+    }
+    .file-input label:hover {
+      background: linear-gradient(45deg,#ff4b2b,#ff416c);
+    }
+
+    /* Progress Bar */
+    .progress {
+      height:1rem;
+      background: rgba(255,255,255,0.2);
+      border-radius:0.5rem;
+      overflow:hidden;
+      margin-bottom:1rem;
+      opacity:0;
+      transition: opacity 0.3s;
+    }
+    .progress.active { opacity:1; }
+    .progress-bar {
+      height:100%;
+      width:0%;
+      background: linear-gradient(90deg,#00c6ff,#0072ff);
+      transition: width 0.2s;
+    }
+
+    /* Result Link */
+    .result {
+      margin-top:1rem;
+      word-break:break-all;
+      font-size:0.9rem;
+    }
+    .result a {
+      color:#00c6ff;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="uploader">
+    <h1>Upload Your Video</h1>
+    <div class="file-input">
+      <label for="file">Choose video…</label>
+      <input type="file" id="file" accept="video/*">
+    </div>
+    <button id="uploadBtn" disabled>Upload Now</button>
+    <div class="progress" id="progress">
+      <div class="progress-bar" id="progressBar"></div>
+    </div>
+    <div class="result" id="result"></div>
+  </div>
+
+  <script>
+    const BASE_URL = 'https://tragic-embed.onrender.com';
+    const fileInput = document.getElementById('file');
+    const uploadBtn = document.getElementById('uploadBtn');
+    const progress = document.getElementById('progress');
+    const progressBar = document.getElementById('progressBar');
+    const result = document.getElementById('result');
+
+    // Enable upload button when a file is chosen
+    fileInput.addEventListener('change', () => {
+      uploadBtn.disabled = !fileInput.files.length;
+      result.textContent = '';
+      progressBar.style.width = '0%';
+      progress.classList.remove('active');
+    });
+
+    uploadBtn.addEventListener('click', () => {
+      if (!fileInput.files.length) return;
+      const file = fileInput.files[0];
+      const form = new FormData();
+      form.append('file', file);
+
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', `${BASE_URL}/videos/`, true);
+
+      // Show progress bar
+      progress.classList.add('active');
+
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) {
+          const pct = (e.loaded / e.total) * 100;
+          progressBar.style.width = pct + '%';
+        }
+      };
+
+      xhr.onload = () => {
+        if (xhr.status === 200) {
+          const filename = encodeURIComponent(file.name);
+          const url = `${BASE_URL}/videos/${filename}`;
+          result.innerHTML = `✅ Uploaded! Your video is at:<br><a href="${url}" target="_blank">${url}</a>`;
+        } else {
+          result.textContent = `❌ Upload failed (status ${xhr.status}).`;
+        }
+      };
+
+      xhr.onerror = () => {
+        result.textContent = '❌ Network error.';
+      };
+
+      xhr.send(form);
+    });
+  </script>
+
+</body>
+</html>
